@@ -1,16 +1,22 @@
 import React from 'react';
 import { StyleSheet, Text, TextInput, Button, Alert, View, AsyncStorage } from 'react-native';
 import Expo from 'expo';
+import Store from 'react-native-simple-store';
 
-const CLIENT_ID = 'xxxxx';
-const SPREADSHEET_ID = 'yyyyy';
 const SHEET_NAME = 'ミルク';
-const REFRESH_TOKEN_KEY = 'google:RefreshToken';
+const REFRESH_TOKEN_KEY = 'google:refreshToken';
+const CLIENT_ID_KEY = 'google:clientID';
+const SPREADSHEET_ID_KEY = 'spreadsheetId';
+const SHEET_NAME_KEY = 'sheetName';
 
-async function signInWithGoogleAsync() {
+function nullOrEmpty(value) {
+  return (value === null || value === '');
+}
+
+async function signInWithGoogleAsync(clientId) {
   try {
     const result = await Expo.Google.logInAsync({
-      iosClientId: CLIENT_ID,
+      iosClientId: clientId,
       scopes: ['profile', 'email', 'https://www.googleapis.com/auth/spreadsheets'],
     });
 
@@ -27,19 +33,11 @@ async function signInWithGoogleAsync() {
 export default class App extends React.Component {
   constructor(props) {
     super(props);
-    this.state = {text: ''};
+    this.state = {text: '', clientId: '', spreadSheetId: '', sheetName: '', accessToken: null};
   }
+
   componentDidMount() {
-    this.getAccessToken()
-    .then((accessToken) => {
-      // console.log(`accessToken=${accessToken}`);
-      if (accessToken === null)
-        this.googleAuth();
-      else
-        this.setState({accessToken});
-    }).catch((error) => {
-      console.log(error);
-    });
+    this.loadConfigurations();
   }
 
   render() {
@@ -47,38 +45,84 @@ export default class App extends React.Component {
       <View style={styles.container}>
         <TextInput
           style={{height: 40}}
-          placeholder="Type here to translate!"
-          keyboardType="numbers-and-punctuation"
+          placeholder="数値入力"
+          keyboardType="numeric"
           onChangeText={(text) => this.setState({text})}
         />
         <Button
           onPress={this.appendRow.bind(this)}
           title="記録する"
         />
-        <Text>Open up App.js to start working on your app!</Text>
-        <Text>Changes you make will automatically reload.</Text>
-        <Text>Shake your phone to open the developer menu.</Text>
-        <Button
-          onPress={this.googleAuth.bind(this)}
-          title="Sign in with Google"
-        />
+        <View style={{marginTop: 30, marginBottom: 30}}>
+          <Button
+            onPress={this.googleAuth.bind(this)}
+            title="Sign in with Google"
+          />
+        </View>
+        <View style={{marginTop: 30}}>
+          <TextInput
+            style={{height: 40}}
+            placeholder="Google API Client ID"
+            keyboardType="default"
+            value={this.state.clientId}
+            onChangeText={(clientId) => this.setState({clientId})}
+          />
+          <TextInput
+            style={{height: 40}}
+            placeholder="SpreadSheet ID"
+            keyboardType="default"
+            value={this.state.spreadsheetId}
+            onChangeText={(spreadsheetId) => this.setState({spreadsheetId})}
+          />
+          <TextInput
+            style={{height: 40}}
+            placeholder="SheetName"
+            keyboardType="default"
+            value={this.state.sheetName}
+            onChangeText={(sheetName) => this.setState({sheetName})}
+          />
+          <Button
+            onPress={this.saveConfigurations.bind(this)}
+            title="Save configs"
+          />
+        </View>
       </View>
     );
+  }
+
+  async saveConfigurations() {
+    await Store.save(SPREADSHEET_ID_KEY, this.state.spreadsheetId);
+    await Store.save(CLIENT_ID_KEY, this.state.clientId);
+    await Store.save(SHEET_NAME_KEY, this.state.sheetName);
+    console.log('cofigurations saved');
+  }
+
+  async loadConfigurations() {
+    const clientId = await Store.get(CLIENT_ID_KEY);
+    const spreadsheetId = await Store.get(SPREADSHEET_ID_KEY);
+    const accessToken = await this.getAccessToken(clientId);
+    const sheetName = await Store.get(SHEET_NAME_KEY);
+    console.log('loadConfigurations:')
+    console.log(`  clientId: ${clientId}`);
+    console.log(`  spreadsheetId: ${spreadsheetId}`);
+    console.log(`  sheetName: ${sheetName}`);
+    console.log(`  accessToken: ${accessToken}`);
+    this.setState({clientId, accessToken, spreadsheetId, sheetName});
   }
 
   saveRefreshToken(refreshToken) {
     AsyncStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
   }
 
-  async getAccessToken() {
+  async getAccessToken(clientId) {
     try {
+      const clientId = await Store.get(CLIENT_ID_KEY);
       const refreshToken = await AsyncStorage.getItem(REFRESH_TOKEN_KEY);
-      if (refreshToken === null) {
+      if (nullOrEmpty(refreshToken)) {
         return null;
       }
-      // console.log(`got refreshToken: ${refreshToken}`);
       const params = {
-        client_id: CLIENT_ID,
+        client_id: clientId,
         refresh_token: refreshToken,
         grant_type: 'refresh_token',
       };
@@ -106,7 +150,10 @@ export default class App extends React.Component {
   }
 
   googleAuth() {
-    signInWithGoogleAsync().then(result => {
+    const clientId = this.state.clientId;
+    console.log(`client id: ${this.state.clientId}`)
+    if (nullOrEmpty(clientId)) return;
+    signInWithGoogleAsync(clientId).then(result => {
       const {accessToken, refreshToken} = result;
       console.log(`result=${result}`);
       console.log(`accessToken=${accessToken}`);
@@ -117,7 +164,13 @@ export default class App extends React.Component {
   }
 
   appendRow() {
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(SHEET_NAME)}:append?valueInputOption=USER_ENTERED`;
+    const spreadsheetId = this.state.spreadsheetId;
+    const sheetName = this.state.sheetName;
+    if (nullOrEmpty(spreadsheetId) || nullOrEmpty(sheetName) || this.state.accessToken === null){
+      console.log('insufficient configurations');
+      return;
+    }
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(SHEET_NAME)}:append?valueInputOption=USER_ENTERED`;
     const time = new Date();
     var hours = time.getHours();
     if (hours < 10) { hours = '0' + hours; }
