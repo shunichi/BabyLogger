@@ -3,7 +3,6 @@ import { StyleSheet, Text, TextInput, Button, Alert, View, AsyncStorage } from '
 import Expo from 'expo';
 import Store from 'react-native-simple-store';
 
-const SHEET_NAME = 'ミルク';
 const REFRESH_TOKEN_KEY = 'google:refreshToken';
 const CLIENT_ID_KEY = 'google:clientID';
 const SPREADSHEET_ID_KEY = 'spreadsheetId';
@@ -44,7 +43,7 @@ export default class App extends React.Component {
     return (
       <View style={styles.container}>
         <TextInput
-          style={{height: 40}}
+          style={{fontSize: 60}}
           placeholder="数値入力"
           keyboardType="numeric"
           onChangeText={(text) => this.setState({text})}
@@ -170,7 +169,7 @@ export default class App extends React.Component {
       console.log('insufficient configurations');
       return;
     }
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(SHEET_NAME)}:append?valueInputOption=USER_ENTERED`;
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sheetName)}:append?valueInputOption=USER_ENTERED`;
     const time = new Date();
     var hours = time.getHours();
     if (hours < 10) { hours = '0' + hours; }
