@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, TextInput, Button, Alert, View, AsyncStorage } from 'react-native';
+import { StyleSheet, Text, TextInput, Button, Alert, View, Linking } from 'react-native';
 import Expo from 'expo';
 import Store from 'react-native-simple-store';
 
@@ -32,7 +32,7 @@ async function signInWithGoogleAsync(clientId) {
 export default class App extends React.Component {
   constructor(props) {
     super(props);
-    this.state = {text: '', clientId: '', spreadSheetId: '', sheetName: '', accessToken: null};
+    this.state = {text: '', clientId: '', spreadsheetId: '', sheetName: '', accessToken: null};
   }
 
   componentDidMount() {
@@ -44,7 +44,7 @@ export default class App extends React.Component {
       <View style={styles.container}>
         <TextInput
           style={{fontSize: 60}}
-          placeholder="数値入力"
+          placeholder="ミルクの量"
           keyboardType="numeric"
           onChangeText={(text) => this.setState({text})}
         />
@@ -52,12 +52,12 @@ export default class App extends React.Component {
           onPress={this.appendRow.bind(this)}
           title="記録する"
         />
-        <View style={{marginTop: 30, marginBottom: 30}}>
+        <View style={{marginTop: 30}}>
           <Button
-            onPress={this.googleAuth.bind(this)}
-            title="Sign in with Google"
+            onPress={this.openSpreadsheet.bind(this)}
+            title="スプレッドシートを開く"
           />
-        </View>
+        </View>        
         <View style={{marginTop: 30}}>
           <TextInput
             style={{height: 40}}
@@ -85,6 +85,12 @@ export default class App extends React.Component {
             title="Save configs"
           />
         </View>
+        <View style={{marginTop: 30, marginBottom: 30}}>
+          <Button
+            onPress={this.googleAuth.bind(this)}
+            title="Sign in with Google"
+          />
+        </View>
       </View>
     );
   }
@@ -109,14 +115,19 @@ export default class App extends React.Component {
     this.setState({clientId, accessToken, spreadsheetId, sheetName});
   }
 
+  openSpreadsheet() {
+    if (nullOrEmpty(this.state.spreadsheetId)) return;
+    Linking.openURL(`https://docs.google.com/spreadsheets/d/${this.state.spreadsheetId}`)
+  }
+
   saveRefreshToken(refreshToken) {
-    AsyncStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+    Store.save(REFRESH_TOKEN_KEY, refreshToken);
   }
 
   async getAccessToken(clientId) {
     try {
       const clientId = await Store.get(CLIENT_ID_KEY);
-      const refreshToken = await AsyncStorage.getItem(REFRESH_TOKEN_KEY);
+      const refreshToken = await Store.get(REFRESH_TOKEN_KEY);
       if (nullOrEmpty(refreshToken)) {
         return null;
       }
